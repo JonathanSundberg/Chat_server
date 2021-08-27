@@ -1,16 +1,16 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 use rocket::http::RawStr;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json;
 use rocket_contrib::json::Json;
 #[macro_use] extern crate rocket;
 
 
-#[derive(FromForm, Deserialize)]
+#[derive(FromForm, Deserialize, Serialize)]
 struct Message{
     message: String,
     user: String,
-
+    complete: bool
 }
 
 
@@ -25,8 +25,9 @@ fn update_messages(sent_string: &RawStr) -> String{
     format!("This is the string:, {}", sent_string.as_str())
 }
 
-#[post("/message/received", format = "json")]
-fn received_message() -> String{
+#[post("/message/received", format = "json", data = "<message>")]
+fn received_message(message: Json<Message>) -> String{
+   
     String::from("asd")
 }
 
@@ -45,9 +46,14 @@ fn main() {
 // use cargo test -- --nocapture to get output
 #[cfg(test)]
 mod tests{
+
+    use rocket::http::{ContentType};
+
     use super::rocket;
+    use super::Message;
     use rocket::local::Client;
     use rocket::http::Status;
+
 
     #[test]
     fn update_messages(){
@@ -60,6 +66,20 @@ mod tests{
     }
 
     fn received_message(){
+
+        let message = Message{
+            message: String::from("this is my test string"),
+            user: String::from("test user"),
+            complete: true
+        };
+
+        let client = Client::new(rocket()).expect("valid rocket instance");
+        let mut response = client.post("/message/received")
+            .header(ContentType::JSON)
+            .remote("127.0.0.1:8000".parse().unwrap())
+            .json(message)
+            .dispatch();
+
 
     }
 }
