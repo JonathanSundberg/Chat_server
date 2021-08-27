@@ -7,3 +7,6 @@ edition = "2018"
 
 [dependencies]
 rocket = "*"
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"
+rocket_contrib = "*"
