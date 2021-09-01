@@ -29,8 +29,7 @@ fn update_messages(sent_string: &RawStr) -> String{
 // curl -X POST -H "Content-Type: application/json" -d @post_json.json http://localhost:8000/message/received  too test
 #[post("/message/received", format = "json", data = "<message>")]
 fn received_message(message: Json<Message>) -> String {
-    println!("asdasdasdasdasd");
-    dbg!("message: {:?}", &message.message);
+    println!("message: {}", &message.message);
     format!("We are getting a post request!")
 }
 
@@ -86,12 +85,13 @@ mod tests{
             user: String::from("test user"),
             complete: true
         };
-        //let client = Client::new(rocket()).expect("valid rocket instance");
-
-        let request_client = reqwest::Client::new();
-        let res = request_client.post("http://localhost:8000/message/received")
-        .json(&message)
-        .send();
+        let body = serde_json::to_string(&message).unwrap();
+        
+        let client = Client::new(mounts()).expect("valid rocket instance");
+        let result = client.post("/message/received")
+        .header(ContentType::JSON)
+        .body(&body)        
+        .dispatch();
 
         //println!("response: {}", res);
     }
@@ -104,13 +104,13 @@ mod tests{
             complete: true
         };
         
-        let temps = r#"testing string""#;
-        let body = Json(message);
-        let word = String::from("testing");
+
+        let body = serde_json::to_string(&message).unwrap();
+
         let client = Client::new(mounts()).expect("valid rocket instance");
         let result = client.post("/message/temp")
         .header(ContentType::JSON)
-        .body(word)        
+        .body(&body)        
         .dispatch();
         /*let request_client = reqwest::blocking::Client::new();
         let res = request_client.post("http://localhost:8000/message/temp")
