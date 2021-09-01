@@ -6,7 +6,7 @@ use rocket_contrib::json::Json;
 #[macro_use] extern crate rocket;
 
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 struct Message{
     message: String,
     user: String,
@@ -26,11 +26,12 @@ fn update_messages(sent_string: &RawStr) -> String{
     format!("This is the string:, {}", sent_string.as_str())
 }
 
+// curl -X POST -H "Content-Type: application/json" -d @post_json.json http://localhost:8000/message/received  too test
 #[post("/message/received", format = "json", data = "<message>")]
 fn received_message(message: Json<Message>) -> String {
     println!("asdasdasdasdasd");
+    dbg!("message: {:?}", &message.message);
     format!("We are getting a post request!")
-
 }
 
 #[post("/message/temp")]
@@ -102,12 +103,14 @@ mod tests{
             user: String::from("test user"),
             complete: true
         };
-
+        
+        let temps = r#"testing string""#;
         let body = Json(message);
+        let word = String::from("testing");
         let client = Client::new(mounts()).expect("valid rocket instance");
         let result = client.post("/message/temp")
         .header(ContentType::JSON)
-        .body(body)        
+        .body(word)        
         .dispatch();
         /*let request_client = reqwest::blocking::Client::new();
         let res = request_client.post("http://localhost:8000/message/temp")

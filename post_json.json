@@ -1,0 +1,5 @@
+{
+    "message": "This message coems from the json file",
+    "user": "This user comes from the json file",
+    "complete": true
+}
