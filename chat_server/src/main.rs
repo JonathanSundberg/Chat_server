@@ -1,7 +1,7 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 use rocket::http::RawStr;
 use serde::{Deserialize, Serialize};
-use serde_json;
+//use serde_json;
 use rocket_contrib::json::Json;
 #[macro_use] extern crate rocket;
 
@@ -11,6 +11,13 @@ struct Message{
     message: String,
     user: String,
     complete: bool
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+struct User{
+    user_name: String,
+    password: String,
+    email: String
 }
 
 
@@ -33,11 +40,14 @@ fn received_message(message: Json<Message>) -> String {
     format!("We are getting a post request!")
 }
 
-#[post("/message/temp")]
-fn temp() {
-    println!("This is the temp method");
-
+#[post("/message/register", format = "json", data = "<_user>")]
+fn register_user(_user: Json<User>) -> String {
+    println!("We are registering a user!");
+    format!("User registered!")
 }
+
+
+
 
 
 fn mounts() -> rocket::Rocket {
@@ -45,7 +55,7 @@ fn mounts() -> rocket::Rocket {
         .mount("/", routes![index])
         .mount("/", routes![update_messages])
         .mount("/", routes![received_message])
-        .mount("/", routes![temp])
+        .mount("/", routes![register_user])
 }
 
 fn main() {
@@ -56,15 +66,14 @@ fn main() {
 #[cfg(test)]
 mod tests{
 
-    use rocket::http::RawStr;
     use rocket::http::{ContentType};
 
     use super::mounts;
     use super::Message;
     use rocket::local::Client;
     use rocket::http::Status;
-    use reqwest;
-    use rocket_contrib::json::Json;
+    use rusqlite;
+    use std::collections::HashMap;
 
 
     #[test]
@@ -88,7 +97,7 @@ mod tests{
         let body = serde_json::to_string(&message).unwrap();
         
         let client = Client::new(mounts()).expect("valid rocket instance");
-        let result = client.post("/message/received")
+        let _result = client.post("/message/received")
         .header(ContentType::JSON)
         .body(&body)        
         .dispatch();
@@ -97,26 +106,25 @@ mod tests{
     }
 
     #[test]
-    fn temp(){
-        let message = Message{
-            message: String::from("this is my test string"),
-            user: String::from("test user"),
-            complete: true
-        };
-        
-
-        let body = serde_json::to_string(&message).unwrap();
-
-        let client = Client::new(mounts()).expect("valid rocket instance");
-        let result = client.post("/message/temp")
-        .header(ContentType::JSON)
-        .body(&body)        
-        .dispatch();
-        /*let request_client = reqwest::blocking::Client::new();
-        let res = request_client.post("http://localhost:8000/message/temp")
-        .send()?;*/
-        
-        //println!("response: {}", result);
+    fn register_user() -> Result<(), rusqlite::Error>{
+        let conn = rusqlite::Connection::open("Users.db")?;
+        conn.execute(
+            "CREATE TABLE if not exists cat_colors (
+                 id integer primary key,
+                 name text not null unique
+             )",
+            [],
+        )?;
+        conn.execute(
+            "CREATE TABLE if not exists cats (
+                 id integer primary key,
+                 name text not null,
+                 color_id integer not null references cat_colors(id)
+             )",
+            [],
+        )?;
+    
+        Ok(())
 
     }
 }
