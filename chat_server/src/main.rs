@@ -3,6 +3,7 @@ use rocket::http::RawStr;
 use serde::{Deserialize, Serialize};
 //use serde_json;
 use rocket_contrib::json::Json;
+use rusqlite;
 #[macro_use] extern crate rocket;
 
 
@@ -47,7 +48,19 @@ fn register_user(_user: Json<User>) -> String {
 }
 
 
+fn create_user_database() -> Result<(), rusqlite::Error>{
 
+    let conn = rusqlite::Connection::open("Users.db")?;
+    conn.execute(
+        "CREATE TABLE if not exists cat_colors (
+             id integer primary key,
+             name text not null unique
+         )",
+        [],
+    )?;
+
+    Ok(())
+}
 
 
 fn mounts() -> rocket::Rocket {
@@ -73,7 +86,6 @@ mod tests{
     use rocket::local::Client;
     use rocket::http::Status;
     use rusqlite;
-    use std::collections::HashMap;
 
 
     #[test]
