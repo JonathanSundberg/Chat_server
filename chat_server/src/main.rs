@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 //use serde_json;
 use rocket_contrib::json::Json;
 use rusqlite;
+use serde_json::to_string;
 #[macro_use] extern crate rocket;
 
 
@@ -50,15 +51,44 @@ fn register_user(_user: Json<User>) -> String {
 
 fn create_user_database() -> Result<(), rusqlite::Error>{
 
+
     let conn = rusqlite::Connection::open("Users.db")?;
+
     conn.execute(
-        "CREATE TABLE if not exists cat_colors (
-             id integer primary key,
-             name text not null unique
+        "CREATE TABLE if not exists users (
+             id             integer NOT NULL primary key,
+             email          text not null unique,
+             username       text not null unique,
+             password       text not null          
          )",
         [],
     )?;
 
+    let temp_user = User{
+        user_name: "my_user".to_string(),
+        password: "testing_my_password".to_string(),
+        email: "test_email@trying.com".to_string()
+
+    };
+
+    conn.execute(
+        "INSERT INTO users (username, email, password) VALUES (?1, ?2, ?3)",
+        [temp_user.user_name, temp_user.email, temp_user.password],
+    ).unwrap();
+    println!("5");
+    let mut stmt = conn.prepare("SELECT username, email, password FROM users")?;
+    let user_iter = stmt.query_map([], |row| {
+        Ok(User {
+            user_name: row.get(0)?,
+            password: row.get(1)?,
+            email: row.get(2)?,
+        })
+    })?;
+
+    println!("testing");
+    for user in user_iter {
+        println!("Found user {:?}", user.unwrap());
+    }
     Ok(())
 }
 
@@ -71,8 +101,13 @@ fn mounts() -> rocket::Rocket {
         .mount("/", routes![register_user])
 }
 
+fn initialze(){
+    create_user_database();
+}
+
 fn main() {
-    mounts().launch();
+    initialze();
+    //mounts().launch();
 }
 
 // use cargo test -- --nocapture to get output
@@ -82,6 +117,7 @@ mod tests{
     use rocket::http::{ContentType};
 
     use super::mounts;
+    use super::User;
     use super::Message;
     use rocket::local::Client;
     use rocket::http::Status;
@@ -120,22 +156,43 @@ mod tests{
     #[test]
     fn register_user() -> Result<(), rusqlite::Error>{
         let conn = rusqlite::Connection::open("Users.db")?;
-        conn.execute(
-            "CREATE TABLE if not exists cat_colors (
-                 id integer primary key,
-                 name text not null unique
-             )",
-            [],
-        )?;
-        conn.execute(
-            "CREATE TABLE if not exists cats (
-                 id integer primary key,
-                 name text not null,
-                 color_id integer not null references cat_colors(id)
-             )",
-            [],
-        )?;
-    
+
+    conn.execute(
+        "CREATE TABLE if not exists users (
+             id             integer NOT NULL primary key,
+             email          text not null unique,
+             username       text not null unique,
+             password       text not null          
+         )",
+        [],
+    )?;
+
+    let temp_user = User{
+        user_name: "my_user".to_string(),
+        password: "testing_my_password".to_string(),
+        email: "test_email@trying.com".to_string()
+
+    };
+
+    conn.execute(
+        "INSERT INTO users (username, email, password) VALUES (?1, ?2, ?3)",
+        [temp_user.user_name, temp_user.email, temp_user.password],
+    ).unwrap();
+
+    let mut stmt = conn.prepare("SELECT username, email, password FROM users")?;
+    let user_iter = stmt.query_map([], |row| {
+        Ok(User {
+            user_name: row.get(0)?,
+            password: row.get(1)?,
+            email: row.get(2)?,
+        })
+    })?;
+
+    println!("testing");
+    for user in user_iter {
+        println!("Found user {:?}", user.unwrap());
+    }
+
         Ok(())
 
     }
