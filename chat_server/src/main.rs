@@ -114,6 +114,8 @@ fn main() {
 #[cfg(test)]
 mod tests{
 
+    use std::fmt::format;
+
     use rocket::http::{ContentType};
 
     use super::mounts;
@@ -167,12 +169,21 @@ mod tests{
         [],
     )?;
 
+
+    
     let temp_user = User{
         user_name: "my_user".to_string(),
         password: "testing_my_password".to_string(),
         email: "test_email@trying.com".to_string()
-
+        
     };
+    let query = format!("SELECT username FROM users WHERE id=\"{}\"", &temp_user.user_name);
+    
+    let mut _already_exists = conn.prepare(&query).unwrap();
+    let usernames = _already_exists.query([])?;
+    
+
+    // TODO: Check if user already exists.
 
     conn.execute(
         "INSERT INTO users (username, email, password) VALUES (?1, ?2, ?3)",
