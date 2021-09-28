@@ -123,7 +123,9 @@ mod tests{
     use super::Message;
     use rocket::local::Client;
     use rocket::http::Status;
-    use rusqlite;
+    use std::fs::File;
+    use std::io;
+    use std::path::Path;
 
 
     #[test]
@@ -156,55 +158,26 @@ mod tests{
     }
 
     #[test]
-    fn register_user() -> Result<(), rusqlite::Error>{
-        let conn = rusqlite::Connection::open("Users.db")?;
+    fn register_user() {
+        let temp_user = User{
+            user_name: "my_user".to_string(),
+            password: "testing_my_password".to_string(),
+            email: "test_email@trying.com".to_string()
+            
+        };
 
-    conn.execute(
-        "CREATE TABLE if not exists users (
-             id             integer NOT NULL primary key,
-             email          text not null unique,
-             username       text not null unique,
-             password       text not null          
-         )",
-        [],
-    )?;
+        if Path::new("Users.json").exists() {
+            
+        }
+        let mut database = File::create("Users.json").expect("Could not create Users file");
 
 
-    
-    let temp_user = User{
-        user_name: "my_user".to_string(),
-        password: "testing_my_password".to_string(),
-        email: "test_email@trying.com".to_string()
-        
-    };
-    let query = format!("SELECT username FROM users WHERE id=\"{}\"", &temp_user.user_name);
-    
-    let mut _already_exists = conn.prepare(&query).unwrap();
-    let usernames = _already_exists.query([])?;
-    
 
-    // TODO: Check if user already exists.
+        serde_json::to_writer_pretty(database, &temp_user).expect("Could not write to the Users.json file");
+    }
+    #[test]
+    fn check_if_user_exists(){
 
-    conn.execute(
-        "INSERT INTO users (username, email, password) VALUES (?1, ?2, ?3)",
-        [temp_user.user_name, temp_user.email, temp_user.password],
-    ).unwrap();
-
-    let mut stmt = conn.prepare("SELECT username, email, password FROM users")?;
-    let user_iter = stmt.query_map([], |row| {
-        Ok(User {
-            user_name: row.get(0)?,
-            password: row.get(1)?,
-            email: row.get(2)?,
-        })
-    })?;
-
-    println!("testing");
-    for user in user_iter {
-        println!("Found user {:?}", user.unwrap());
     }
 
-        Ok(())
-
-    }
 }
