@@ -22,6 +22,11 @@ struct User{
     email: String
 }
 
+#[derive(Deserialize, Serialize, Debug)]
+struct UserDatabase{
+    Users: Vec<User>
+}
+
 
 
 #[get("/")]
@@ -116,16 +121,19 @@ mod tests{
 
     use std::fmt::format;
 
+    use rocket::data;
     use rocket::http::{ContentType};
 
     use super::mounts;
     use super::User;
+    use super::UserDatabase;
     use super::Message;
     use rocket::local::Client;
     use rocket::http::Status;
     use std::fs::File;
-    use std::io;
+    use std::io::{self, BufRead};
     use std::path::Path;
+    use std::io::BufReader;
 
 
     #[test]
@@ -159,6 +167,7 @@ mod tests{
 
     #[test]
     fn register_user() {
+
         let temp_user = User{
             user_name: "my_user".to_string(),
             password: "testing_my_password".to_string(),
@@ -166,14 +175,27 @@ mod tests{
             
         };
 
-        if Path::new("Users.json").exists() {
-            
+        let database_file = File::create("Users.json").unwrap();
+        let reader = BufReader::new(&database_file);
+
+        let json_database: UserDatabase = match serde_json::from_reader(reader){
+            Ok(content) => content,
+            Err(e) => {
+                println!("Error when reading Users.json, creating empty database..: {}", e);
+                let empty_vec = vec![];
+                UserDatabase{
+                    Users: empty_vec
+                }
+            }
+        };
+
+        for user in json_database.Users.iter(){
+
         }
-        let mut database = File::create("Users.json").expect("Could not create Users file");
 
 
 
-        serde_json::to_writer_pretty(database, &temp_user).expect("Could not write to the Users.json file");
+        serde_json::to_writer_pretty(database_file, &temp_user).expect("Could not write to the Users.json file");
     }
     #[test]
     fn check_if_user_exists(){
