@@ -1,10 +1,9 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 use rocket::http::RawStr;
 use serde::{Deserialize, Serialize};
-//use serde_json;
+use serde_json;
 use rocket_contrib::json::Json;
-use rusqlite;
-use serde_json::to_string;
+
 #[macro_use] extern crate rocket;
 
 
@@ -26,7 +25,6 @@ struct User{
 struct UserDatabase{
     Users: Vec<User>
 }
-
 
 
 #[get("/")]
@@ -54,49 +52,24 @@ fn register_user(_user: Json<User>) -> String {
 }
 
 
-fn create_user_database() -> Result<(), rusqlite::Error>{
+fn _check_if_username_exists(database: &UserDatabase, username: &String) -> bool{
+    for user in database.Users.iter(){
 
-
-    let conn = rusqlite::Connection::open("Users.db")?;
-
-    conn.execute(
-        "CREATE TABLE if not exists users (
-             id             integer NOT NULL primary key,
-             email          text not null unique,
-             username       text not null unique,
-             password       text not null          
-         )",
-        [],
-    )?;
-
-    let temp_user = User{
-        user_name: "my_user".to_string(),
-        password: "testing_my_password".to_string(),
-        email: "test_email@trying.com".to_string()
-
-    };
-
-    conn.execute(
-        "INSERT INTO users (username, email, password) VALUES (?1, ?2, ?3)",
-        [temp_user.user_name, temp_user.email, temp_user.password],
-    ).unwrap();
-    println!("5");
-    let mut stmt = conn.prepare("SELECT username, email, password FROM users")?;
-    let user_iter = stmt.query_map([], |row| {
-        Ok(User {
-            user_name: row.get(0)?,
-            password: row.get(1)?,
-            email: row.get(2)?,
-        })
-    })?;
-
-    println!("testing");
-    for user in user_iter {
-        println!("Found user {:?}", user.unwrap());
+        if user.user_name == username.clone(){
+            return true
+        }
     }
-    Ok(())
+    false
 }
+fn _check_if_email_exists(database: &UserDatabase, email: &String) -> bool{
+    for user in database.Users.iter(){
 
+        if user.email == email.clone(){
+            return true
+        }
+    }
+    false
+}
 
 fn mounts() -> rocket::Rocket {
     rocket::ignite()
@@ -107,7 +80,7 @@ fn mounts() -> rocket::Rocket {
 }
 
 fn initialze(){
-    create_user_database();
+    
 }
 
 fn main() {
@@ -115,13 +88,10 @@ fn main() {
     //mounts().launch();
 }
 
+
 // use cargo test -- --nocapture to get output
 #[cfg(test)]
 mod tests{
-
-    use std::fmt::format;
-
-    use rocket::data;
     use rocket::http::{ContentType};
 
     use super::mounts;
@@ -131,8 +101,6 @@ mod tests{
     use rocket::local::Client;
     use rocket::http::Status;
     use std::fs::File;
-    use std::io::{self, BufRead};
-    use std::path::Path;
     use std::io::BufReader;
 
 
@@ -188,12 +156,6 @@ mod tests{
                 }
             }
         };
-
-        for user in json_database.Users.iter(){
-
-        }
-
-
 
         serde_json::to_writer_pretty(database_file, &temp_user).expect("Could not write to the Users.json file");
     }
