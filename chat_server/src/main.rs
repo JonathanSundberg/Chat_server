@@ -2,6 +2,7 @@
 use rocket::http::RawStr;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::{collections::HashMap, hash::Hash};
 use rocket_contrib::json::Json;
 
 #[macro_use] extern crate rocket;
@@ -14,7 +15,7 @@ struct Message{
     complete: bool
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Default)]
 struct User{
     user_name: String,
     password: String,
@@ -23,7 +24,7 @@ struct User{
 
 #[derive(Deserialize, Serialize, Debug)]
 struct UserDatabase{
-    Users: Vec<User>
+    Users: HashMap<String, User>,
 }
 
 
@@ -52,23 +53,11 @@ fn register_user(_user: Json<User>) -> String {
 }
 
 
-fn _check_if_username_exists(database: &UserDatabase, username: &String) -> bool{
-    for user in database.Users.iter(){
-
-        if user.user_name == username.clone(){
-            return true
-        }
-    }
-    false
+fn _check_if_username_exists(database: &UserDatabase, user: &User) -> bool{
+    database.Users.contains_key(&user.user_name)
 }
-fn _check_if_email_exists(database: &UserDatabase, email: &String) -> bool{
-    for user in database.Users.iter(){
-
-        if user.email == email.clone(){
-            return true
-        }
-    }
-    false
+fn _check_if_email_exists(database: &UserDatabase, user: &User) -> bool{
+    database.Users.contains_key(&user.email)
 }
 
 fn mounts() -> rocket::Rocket {
@@ -93,8 +82,11 @@ fn main() {
 #[cfg(test)]
 mod tests{
     use rocket::http::{ContentType};
+    use rocket_contrib::json;
 
     use super::mounts;
+    use super::_check_if_username_exists;
+    use super::_check_if_email_exists;
     use super::User;
     use super::UserDatabase;
     use super::Message;
@@ -102,6 +94,9 @@ mod tests{
     use rocket::http::Status;
     use std::fs::File;
     use std::io::BufReader;
+    use std::collections::HashMap;
+    use std::path::Path;
+    use std::fs::OpenOptions;
 
 
     #[test]
@@ -140,25 +135,47 @@ mod tests{
             user_name: "my_user".to_string(),
             password: "testing_my_password".to_string(),
             email: "test_email@trying.com".to_string()
-            
         };
+        
+        // TODO: does not overwrite previous file content
+        let database_file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .append(false)
+            .open("Users.json")
+            .unwrap();
 
-        let database_file = File::create("Users.json").unwrap();
+
+
         let reader = BufReader::new(&database_file);
 
-        let json_database: UserDatabase = match serde_json::from_reader(reader){
+
+        let mut json_database: UserDatabase = match serde_json::from_reader(reader){
             Ok(content) => content,
             Err(e) => {
                 println!("Error when reading Users.json, creating empty database..: {}", e);
-                let empty_vec = vec![];
                 UserDatabase{
-                    Users: empty_vec
+                    Users: HashMap::new()
                 }
             }
         };
+        println!("{:?}", json_database);
 
-        serde_json::to_writer_pretty(database_file, &temp_user).expect("Could not write to the Users.json file");
+        if _check_if_username_exists(&json_database, &temp_user){
+            println!("Username exists");
+            return;
+        }
+        if _check_if_email_exists(&json_database, &temp_user){
+            println!("Email exists");
+            return;
+        }
+        json_database.Users.insert(temp_user.user_name.clone(), temp_user);
+        println!("{:?}", &json_database);
+
+        serde_json::to_writer_pretty(database_file, &json_database).expect("Could not write to the Users.json file");
     }
+
     #[test]
     fn check_if_user_exists(){
 
