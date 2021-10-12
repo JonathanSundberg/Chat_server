@@ -1,8 +1,5 @@
 {
   "Users": {
-  }
-}{
-  "Users": {
     "my_user": {
       "user_name": "my_user",
       "password": "testing_my_password",

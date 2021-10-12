@@ -142,7 +142,7 @@ mod tests{
             .read(true)
             .write(true)
             .create(true)
-            .append(false)
+            .truncate(true)
             .open("Users.json")
             .unwrap();
 
