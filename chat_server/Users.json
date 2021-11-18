@@ -1,9 +1,18 @@
 {
-  "Users": {
+  "users": {
     "my_user": {
       "user_name": "my_user",
       "password": "testing_my_password",
       "email": "test_email@trying.com"
+    },
+    "second_user": {
+      "user_name": "second_user",
+      "password": "Another_password",
+      "email": "another_email@trying.com"
     }
-  }
+  },
+  "emails": [
+    "another_email@trying.com",
+    "test_email@trying.com"
+  ]
 }
