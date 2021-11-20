@@ -5,8 +5,10 @@ use serde_json;
 use std::{collections::HashMap, collections::HashSet, fs::File, path::PathBuf, result};
 use rocket_contrib::json::{self, Json};
 use std::io::BufReader;
+use std::str::FromStr;
 
 #[macro_use] extern crate rocket;
+
 
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -37,7 +39,6 @@ fn index() -> &'static str {
 
 #[get("/message/update/<sent_string>")]
 fn update_messages(sent_string: &RawStr) -> String{
-    //println!("asdasdasdasdasd");
     format!("This is the string:, {}", sent_string.as_str())
 }
 
@@ -48,9 +49,10 @@ fn received_message(message: Json<Message>) -> String {
     format!("We are getting a post request!")
 }
 
-#[post("/message/register", format = "json", data = "<_user>")]
-fn register_user(_user: Json<User>) -> String {
+#[post("/message/register", format = "json", data = "<user>")]
+fn register_user(user: Json<User>) -> String {
     println!("We are registering a user!");
+    write_user_to_database(user.into_inner());
     format!("User registered!")
 }
 
@@ -58,9 +60,11 @@ fn register_user(_user: Json<User>) -> String {
 fn _check_if_username_exists(database: &UserDatabase, user: &User) -> bool{
     database.users.contains_key(&user.user_name)
 }
+
 fn _check_if_email_exists(database: &UserDatabase, user: &User) -> bool{
     database.emails.contains(&user.email)
 }
+
 fn _get_file_if_exists_else_create_empty(filepath: PathBuf) -> File{
     if filepath.exists(){
         return File::open(filepath).unwrap()
@@ -70,13 +74,43 @@ fn _get_file_if_exists_else_create_empty(filepath: PathBuf) -> File{
     };
 }
 
-fn _parse_json_file(json_file: File) -> Option<UserDatabase>{
+fn _parse_database_file(json_file: File) -> Option<UserDatabase>{
     let reader = BufReader::new(json_file);
     let json_database: Result<UserDatabase, serde_json::Error> = serde_json::from_reader(reader);
     match json_database{
         Ok(content) => Some(content),
         Err(_) => None
     }
+}
+
+fn write_user_to_database(user: User){
+    
+    let filepath = PathBuf::from_str("Users.json").unwrap();
+    let database_file = _get_file_if_exists_else_create_empty(filepath);
+    let json_database = _parse_database_file(database_file);
+
+    let mut json_content = match json_database{
+        Some(content) => content,
+        None => {
+            UserDatabase::default()
+        }
+    };
+
+    if _check_if_username_exists(&json_content, &user){
+        println!("Username exists");
+        return;
+    }
+    if _check_if_email_exists(&json_content, &user){
+        println!("Email exists");
+        return;
+    }
+
+    json_content.users.insert(user.user_name.clone(), user.clone());
+    json_content.emails.insert(user.email.clone());
+
+    let new_file = File::create("Users.json").unwrap();
+    serde_json::to_writer_pretty(new_file, &json_content).expect("Could not write to the Users.json file");
+
 }
 
 fn mounts() -> rocket::Rocket {
@@ -93,7 +127,7 @@ fn initialze(){
 
 fn main() {
     initialze();
-    //mounts().launch();
+    mounts().launch();
 }
 
 
@@ -101,21 +135,11 @@ fn main() {
 #[cfg(test)]
 mod tests{
     use rocket::http::{ContentType};
-    use rocket_contrib::json;
-    use serde::__private::de::Content;
 
     use super::*;
-    use super::User;
-    use super::UserDatabase;
-    use super::Message;
     use rocket::local::Client;
     use rocket::http::Status;
     use std::fs::File;
-    use std::io::BufReader;
-    use std::collections::HashMap;
-    use std::collections::HashSet;
-    use std::path::Path;
-    use std::str::FromStr;
 
 
 
@@ -149,7 +173,7 @@ mod tests{
     }
 
     #[test]
-    fn register_user() {
+    fn write_user_to_database_test() {
 
         let temp_user_1 = User{
             user_name: "my_user".to_string(),
@@ -164,7 +188,7 @@ mod tests{
         
         let filepath = PathBuf::from_str("Users.json").unwrap();
         let database_file = _get_file_if_exists_else_create_empty(filepath);
-        let json_database = _parse_json_file(database_file);
+        let json_database = _parse_database_file(database_file);
 
         let mut json_content = match json_database{
             Some(content) => content,
