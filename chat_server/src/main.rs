@@ -6,9 +6,10 @@ use std::{collections::HashMap, collections::HashSet, fs::File, path::PathBuf, r
 use rocket_contrib::json::{self, Json};
 use std::io::BufReader;
 use std::str::FromStr;
+use std::fs;
+use std::sync::RwLock;
 
 #[macro_use] extern crate rocket;
-
 
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -25,12 +26,51 @@ struct User{
     email: String
 }
 
-#[derive(Deserialize, Serialize, Debug, Default)]
+#[derive(Deserialize, Serialize, Debug)]
 struct UserDatabase{
-    users: HashMap<String, User>,
-    emails: HashSet<String>
+    users: RwLock<HashMap<String, User>>,
+    emails: RwLock<HashSet<String>>
 }
 
+impl Default for UserDatabase{
+    fn default() -> Self{
+        UserDatabase {
+            users: RwLock::new(HashMap::default()),
+            emails: RwLock::new(HashSet::default())
+        }
+    }
+}
+
+impl UserDatabase{
+
+    fn get_variables_as_tuple(&self) -> (HashMap<String,User>, HashSet<String>){
+        (self.users.read().unwrap().clone(),
+         self.emails.read().unwrap().clone())
+    }
+
+    // make mutexed with rwlock
+    fn save_to_file(&self, path: &PathBuf){
+
+        println!("Wahoo!");
+        let self_variables = self.get_variables_as_tuple();
+        println!("Yepeee!");
+        let new_file = File::create("Users.json").unwrap();
+        println!("wo");
+        serde_json::to_writer_pretty(new_file, &self_variables).expect("Could not write to the Users.json file");
+
+    }
+
+    fn read_from_file(&self, path: &PathBuf){
+
+        /*let f = File::open(path).unwrap();
+
+        let json_database: Result<UserDatabase, serde_json::Error> = serde_json::from_reader(f);
+        match json_database{
+            Ok(content) => Some(content),
+            Err(_) => None
+        }*/
+    }
+}
 
 #[get("/")]
 fn index() -> &'static str {
@@ -55,14 +95,27 @@ fn register_user(user: Json<User>) -> String {
     write_user_to_database(user.into_inner());
     format!("User registered!")
 }
+#[post("/message/remove", format = "json", data = "<user>")]
+fn remove_user(user: Json<User>) -> String {
+    println!("We are removing a user!");
+    remove_user_from_database(user.into_inner());
+    format!("User removed!")
+}
 
+fn _create_User_storage_directory(user_id: i32){
+    let path_string = format!("Users/{}", user_id);
+    let user_storage_path = PathBuf::from(path_string);
+    fs::create_dir_all(user_storage_path).unwrap();
+}
 
 fn _check_if_username_exists(database: &UserDatabase, user: &User) -> bool{
-    database.users.contains_key(&user.user_name)
+    //database.users.contains_key(&user.user_name)
+    true
 }
 
 fn _check_if_email_exists(database: &UserDatabase, user: &User) -> bool{
-    database.emails.contains(&user.email)
+    //database.emails.contains(&user.email)
+    true
 }
 
 fn _get_file_if_exists_else_create_empty(filepath: PathBuf) -> File{
@@ -74,6 +127,7 @@ fn _get_file_if_exists_else_create_empty(filepath: PathBuf) -> File{
     };
 }
 
+
 fn _parse_database_file(json_file: File) -> Option<UserDatabase>{
     let reader = BufReader::new(json_file);
     let json_database: Result<UserDatabase, serde_json::Error> = serde_json::from_reader(reader);
@@ -83,33 +137,60 @@ fn _parse_database_file(json_file: File) -> Option<UserDatabase>{
     }
 }
 
-fn write_user_to_database(user: User){
-    
+fn _get_users_database() -> UserDatabase{
     let filepath = PathBuf::from_str("Users.json").unwrap();
     let database_file = _get_file_if_exists_else_create_empty(filepath);
     let json_database = _parse_database_file(database_file);
 
-    let mut json_content = match json_database{
+    let user_database = match json_database{
         Some(content) => content,
         None => {
             UserDatabase::default()
         }
     };
+    user_database
+}
 
-    if _check_if_username_exists(&json_content, &user){
+fn write_user_to_database(user: User){
+    
+    let mut user_database = _get_users_database();
+
+    if _check_if_username_exists(&user_database, &user){
         println!("Username exists");
         return;
     }
-    if _check_if_email_exists(&json_content, &user){
+    if _check_if_email_exists(&user_database, &user){
         println!("Email exists");
         return;
     }
 
-    json_content.users.insert(user.user_name.clone(), user.clone());
-    json_content.emails.insert(user.email.clone());
+    //user_database.users.insert(user.user_name.clone(), user.clone());
+    //user_database.emails.insert(user.email.clone());
 
     let new_file = File::create("Users.json").unwrap();
-    serde_json::to_writer_pretty(new_file, &json_content).expect("Could not write to the Users.json file");
+    serde_json::to_writer_pretty(new_file, &user_database).expect("Could not write to the Users.json file");
+
+}
+
+fn remove_user_from_database(user: User){
+    let mut user_database = _get_users_database();
+
+    if !_check_if_email_exists(&user_database, &user){
+        println!("Email does not exists");
+        return;
+    }
+
+    //user_database.users.remove(&user.user_name);
+    //user_database.emails.remove(&user.email);
+
+    let new_file = File::create("Users.json").unwrap();
+    serde_json::to_writer_pretty(new_file, &user_database).expect("Could not write to the Users.json file");
+
+}
+
+fn create_conversation_list_file(){
+    let conversation_list_path = PathBuf::from("Conversations.json");
+    let conversation_file =_get_file_if_exists_else_create_empty(conversation_list_path);
 
 }
 
@@ -119,6 +200,7 @@ fn mounts() -> rocket::Rocket {
         .mount("/", routes![update_messages])
         .mount("/", routes![received_message])
         .mount("/", routes![register_user])
+        .mount("/", routes![remove_user])
 }
 
 fn initialze(){
@@ -141,6 +223,44 @@ mod tests{
     use rocket::http::Status;
     use std::fs::File;
 
+    
+
+    #[test]
+    fn _write_userdatabase_to_file_test(){
+
+        let temp_user_1 = User{
+            user_name: "my_user".to_string(),
+            password: "testing_my_password".to_string(),
+            email: "test_email@trying.com".to_string()
+        };
+        let temp_user_2 = User{
+            user_name: "second_user".to_string(),
+            password: "Another_password".to_string(),
+            email: "another_email@trying.com".to_string()
+        };
+        
+        let user_database = UserDatabase::default();
+        { // scope to make the rwlock drop before saving to file
+            let mut map = user_database.users.write().unwrap();
+            let mut set = user_database.emails.write().unwrap();
+    
+            map.insert(temp_user_2.user_name.clone(), temp_user_2.clone());
+            set.insert(temp_user_2.email.clone());
+        }
+
+        user_database.save_to_file(&PathBuf::from("Users.json"));
+        println!("{:?}", user_database);
+
+        
+
+    }
+
+
+    #[test]
+    fn _create_User_storage_directory_test(){
+        let user_id = 12335;
+        _create_User_storage_directory(user_id);
+    }
 
 
     #[test]
@@ -210,8 +330,8 @@ mod tests{
             return;
         }
 
-        json_content.users.insert(temp_user_2.user_name.clone(), temp_user_2.clone());
-        json_content.emails.insert(temp_user_2.email.clone());
+        //json_content.users.insert(temp_user_2.user_name.clone(), temp_user_2.clone());
+        //json_content.emails.insert(temp_user_2.email.clone());
         println!("{:?}", &json_content);
 
         let new_file = File::create("Users.json").unwrap();
@@ -220,8 +340,14 @@ mod tests{
     }
 
     #[test]
-    fn check_if_user_exists(){
+    fn remove_user_from_database_test(){
+        let temp_user_1 = User{
+            user_name: "my_user".to_string(),
+            password: "testing_my_password".to_string(),
+            email: "test_email@trying.com".to_string()
+        };
 
+        remove_user_from_database(temp_user_1);
     }
 
 }
