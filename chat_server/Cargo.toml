@@ -10,3 +10,4 @@ rocket = "*"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 rocket_contrib = {version = "*", features = ["json"]}
+parking_lot = { version = "0.11.2", features = ["nightly", "serde"] }

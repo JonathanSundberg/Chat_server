@@ -1,12 +1,12 @@
-[
-  {
+{
+  "users": {
     "second_user": {
       "user_name": "second_user",
       "password": "Another_password",
       "email": "another_email@trying.com"
     }
   },
-  [
+  "emails": [
     "another_email@trying.com"
   ]
-]
+}
