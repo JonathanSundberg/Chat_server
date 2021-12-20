@@ -5,7 +5,8 @@ def register_user():
     test_user = {
       "user_name": "Python_test_user",
       "password": "Python_test_password",
-      "email": "Python_test_emaill@trying.com"
+      "email": "Python_test_emaill@trying.com",
+      "id": ""
     }
     post_request = requests.post(url, json=test_user)
     print(type(post_request.status_code))
@@ -16,7 +17,8 @@ def remove_user_from_database():
     test_user = {
       "user_name": "Python_test_user",
       "password": "Python_test_password",
-      "email": "Python_test_emaill@trying.com"
+      "email": "Python_test_emaill@trying.com",
+      "id": ""
     }
     post_request = requests.post(url, json=test_user)
     print(type(post_request.status_code))
@@ -25,8 +27,8 @@ def remove_user_from_database():
 
 
 def main():
-    #register_user()
-    remove_user_from_database()
+    register_user()
+    #remove_user_from_database()
     
 
 if __name__ == "__main__":

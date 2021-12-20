@@ -1,15 +1,48 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 use parking_lot::Mutex;
 use rocket::http::RawStr;
-use rocket_contrib::json::{Json};
+use rocket::State;
+use rocket_contrib::json::Json;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::hash::{Hash, Hasher}; // collections::hash_map::DefaultHasher Requires these to hash
 use std::io::BufReader;
 use std::str::FromStr;
-use std::{collections::HashMap, collections::HashSet, fs::File, path::PathBuf};
+use std::{
+    collections::hash_map::DefaultHasher, collections::HashMap, collections::HashSet, fs::File,
+    path::PathBuf,
+};
+use uuid::Uuid;
 
 #[macro_use]
 extern crate rocket;
+
+trait Hashable {
+    fn to_hash(&self) -> u64;
+}
+
+impl Hashable for String {
+    fn to_hash(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Default)]
+struct Chat {
+    messages: HashMap<String, Message>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Default)]
+struct Chats {
+    chat_dict: HashMap<String, Chat>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Default)]
+struct Conversations {
+    conversations: HashSet<String>,
+}
 
 #[derive(Deserialize, Serialize, Debug)]
 struct Message {
@@ -23,7 +56,46 @@ struct User {
     user_name: String,
     password: String,
     email: String,
-    id: i32,
+    id: Option<u64>,
+}
+
+impl User {
+    fn get_user_dir(&self) -> Result<String, String> {
+        if self.id.is_some() {
+            return Ok(format!("Users/{}", self.id.clone().unwrap()));
+        } else {
+            return Err("User has no id".to_string());
+        }
+    }
+
+    fn read_user_conversations_file(&self) -> Result<Conversations, String> {
+        if self.id.is_some() {
+            let path = format!("Users/{}/Conversations.json", self.id.clone().unwrap());
+            let f = File::open(path).unwrap();
+            let user_conversations: Result<Conversations, serde_json::Error> =
+                serde_json::from_reader(f);
+            match user_conversations {
+                Ok(content) => Ok(content),
+                Err(_) => Err("Could not open users conversations file".to_string()),
+            }
+        } else {
+            return Err("User has no id".to_string());
+        }
+    }
+
+    fn save_user_conversations_file(&self, conversations: Conversations) -> Result<(), String> {
+        if self.id.is_some() {
+            let path = format!("Users/{}/Conversations.json", self.id.clone().unwrap());
+            let new_file = File::create(path).unwrap();
+            serde_json::to_writer_pretty(new_file, &conversations)
+                .expect("Could not write to the users conversation file");
+            Ok(())
+        } else {
+            return Err("User has no id".to_string());
+        }
+    }
+
+    fn add_conversation_to_user(&self, conversation_id: u64) {}
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -57,7 +129,7 @@ impl UserDatabase {
         }
     }
 
-    fn _check_if_username_exists(&self, compare_name: &User) -> bool{
+    fn _check_if_username_exists(&self, compare_name: &User) -> bool {
         self.users.lock().contains_key(&compare_name.user_name)
     }
 
@@ -65,20 +137,61 @@ impl UserDatabase {
         self.emails.lock().contains(&user.email)
     }
 
-    fn _create_User_storage_directory(&self, user_id: i32) {
-        let path_string = format!("Users/{}", user_id);
-        let user_storage_path = PathBuf::from(path_string);
+    fn _add_conversation(&self, chat_id: &String) {
+        // the conversation file holding the chat messages
+        let path_string = format!("Conversations/{}", chat_id.clone());
+        let conversations_dir = PathBuf::from(&path_string);
+        fs::create_dir_all(conversations_dir).unwrap();
+
+        let conversation_file = format!("{}/conversation.json", path_string);
+        let new_file = File::create(conversation_file).unwrap();
+        serde_json::to_writer_pretty(new_file, &Chat::default())
+            .expect("Could not create the conversation file");
+    }
+
+    fn _create_User_storage_directory(&self, user: User) -> Result<(), &str> {
+        let id = if user.id.is_some() {
+            user.id.unwrap()
+        } else {
+            println!("User does not have an ID, returning");
+            return Err("User does not have an ID, returning");
+        };
+        let path_string = format!("Users/{}", id);
+        let user_storage_path = PathBuf::from(&path_string);
         fs::create_dir_all(user_storage_path).unwrap();
+        let conversations_file = format!("{}/conversations.json", path_string);
+        let new_file = File::create(conversations_file).unwrap();
+        serde_json::to_writer_pretty(new_file, &Conversations::default())
+            .expect("Could not write to the user conversation file");
+        Ok(())
     }
 
     fn remove_user_from_database(&self, user: User) {
-    
         if !self._check_if_email_exists(&user) {
             println!("Email does not exists");
             return;
         }
         self.users.lock().remove(&user.user_name);
         self.emails.lock().remove(&user.email);
+        self.save_users_to_file();
+    }
+
+    fn write_user_to_database(&self, mut user: User) {
+        if self._check_if_username_exists(&user) {
+            println!("Username exists");
+            return;
+        }
+        if self._check_if_email_exists(&user) {
+            println!("Email exists");
+            return;
+        }
+        user.id = Some(user.email.to_hash());
+
+        self.users
+            .lock()
+            .insert(user.user_name.clone(), user.clone());
+        self.emails.lock().insert(user.email.clone());
+
         self.save_users_to_file();
     }
 }
@@ -101,9 +214,9 @@ fn received_message(message: Json<Message>) -> String {
 }
 
 #[post("/message/register", format = "json", data = "<user>")]
-fn register_user(user: Json<User>) -> String {
+fn register_user(user: Json<User>, user_database: State<UserDatabase>) -> String {
     println!("We are registering a user!");
-    write_user_to_database(user.into_inner());
+    user_database.write_user_to_database(user.into_inner());
     format!("User registered!")
 }
 
@@ -113,10 +226,6 @@ fn remove_user(user: Json<User>) -> String {
     //remove_user_from_database(user.into_inner());
     format!("User removed!")
 }
-
-
-
-
 
 fn _get_file_if_exists_else_create_empty(filepath: PathBuf) -> File {
     if filepath.exists() {
@@ -147,36 +256,7 @@ fn _get_users_database() -> UserDatabase {
     user_database
 }
 
-fn write_user_to_database(user: User) {
-    let user_database = _get_users_database();
-
-    if user_database._check_if_username_exists(&user) {
-        println!("Username exists");
-        return;
-    }
-    if user_database._check_if_email_exists(&user) {
-        println!("Email exists");
-        return;
-    }
-
-    user_database.users.lock().insert(user.user_name.clone(), user.clone());
-    user_database.emails.lock().insert(user.email.clone());
-
-    let new_file = File::create("Users.json").unwrap();
-    serde_json::to_writer_pretty(new_file, &user_database)
-        .expect("Could not write to the Users.json file");
-}
-
-
-fn create_conversation_list_file() {
-    let conversation_list_path = PathBuf::from("Conversations.json");
-    let conversation_file = _get_file_if_exists_else_create_empty(conversation_list_path);
-}
-
 fn mounts(user_database: UserDatabase) -> rocket::Rocket {
-
-
-
     rocket::ignite()
         .mount("/", routes![index])
         .mount("/", routes![update_messages])
@@ -184,10 +264,9 @@ fn mounts(user_database: UserDatabase) -> rocket::Rocket {
         .mount("/", routes![register_user])
         .mount("/", routes![remove_user])
         .manage(user_database)
-
 }
 
-fn initialze() -> UserDatabase{
+fn initialze() -> UserDatabase {
     let mut user_database = UserDatabase::default();
     user_database.read_users_from_file();
     user_database
@@ -201,25 +280,23 @@ fn main() {
 // use cargo test -- --nocapture to get output
 #[cfg(test)]
 mod tests {
-    use rocket::http::ContentType;
-
     use super::*;
-    use rocket::http::Status;
-    use rocket::local::Client;
 
     #[test]
     fn _write_userdatabase_to_file_test() {
+        let id1 = Some(1111);
+        let id2 = Some(11112);
         let temp_user_1 = User {
             user_name: "my_user".to_string(),
             password: "testing_my_password".to_string(),
             email: "test_email@trying.com".to_string(),
-            id: 0000000000
+            id: id1,
         };
         let temp_user_2 = User {
             user_name: "second_user".to_string(),
             password: "Another_password".to_string(),
             email: "another_email@trying.com".to_string(),
-            id: 0000000001
+            id: id2,
         };
 
         let mut user_database = UserDatabase::default();
@@ -240,11 +317,12 @@ mod tests {
 
     #[test]
     fn remove_user_from_database_test() {
+        let id1 = Some(3232323);
         let temp_user_1 = User {
             user_name: "my_user".to_string(),
             password: "testing_my_password".to_string(),
             email: "test_email@trying.com".to_string(),
-            id: 0000000000,
+            id: id1,
         };
         let mut user_database = UserDatabase::default();
         user_database.read_users_from_file();
@@ -253,27 +331,55 @@ mod tests {
 
     #[test]
     fn _create_User_storage_directory_test() {
-        let user_id = 12335;
-        let mut user_database = UserDatabase::default();
-        user_database.read_users_from_file();
-        user_database._create_User_storage_directory(user_id);
+        let mut temp_user_1 = User {
+            user_name: "my_user".to_string(),
+            password: "testing_my_password".to_string(),
+            email: "test_emaild@trying.com".to_string(),
+            id: None,
+        };
+        temp_user_1.id = Some(temp_user_1.email.to_hash());
+        dbg!(&temp_user_1);
+        let user_database = UserDatabase::default();
+        let _result = user_database._create_User_storage_directory(temp_user_1);
+    }
+
+    #[test]
+    fn create_conversation_test() {
+        let mut temp_user_1 = User {
+            user_name: "my_user".to_string(),
+            password: "testing_my_password".to_string(),
+            email: "test_emaild@trying.com".to_string(),
+            id: None,
+        };
+        let conversation_id = Uuid::new_v4().to_string();
+        temp_user_1.id = Some(temp_user_1.email.to_hash());
+        dbg!(&temp_user_1);
+
+        let user_database = UserDatabase::default();
+        let _result = user_database._add_conversation(&conversation_id);
+    }
+
+    #[test]
+    fn hashing_test() {
+        let a = "a".to_string();
+        dbg!(a.to_hash());
     }
 
     #[test]
     fn update_messages() {
-        let client = Client::new(mounts()).expect("valid rocket instance");
+        /*let client = Client::new(mounts()).expect("valid rocket instance");
         let mut response = client
             .get("/message/update/Testing_a_string_here")
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
         //assert_eq!(response.body_string(), Some("Hello, world!".into()));
 
-        println!("message string: {}", response.body_string().unwrap());
+        println!("message string: {}", response.body_string().unwrap());*/
     }
 
     #[test]
     fn received_message() {
-        let message = Message {
+        /*let message = Message {
             message: String::from("this is my test string"),
             user: String::from("test user"),
             complete: true,
@@ -287,6 +393,6 @@ mod tests {
             .body(&body)
             .dispatch();
 
-        //println!("response: {}", res);
+        //println!("response: {}", res);*/
     }
 }
