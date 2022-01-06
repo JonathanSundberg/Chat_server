@@ -15,7 +15,6 @@ use std::{
     },
     path::PathBuf,
 };
-use uuid::Uuid;
 
 trait Hashable {
     fn to_hash(&self) -> u64;
@@ -48,7 +47,6 @@ pub struct User {
 impl User {
 
     pub fn _create_User_storage_directory(&self) -> Result<File, &str> {
-        // TODO: Check if File::create creates necessary folders too
         let path_string = format!("Users/{}", self.id);
         let user_storage_path = PathBuf::from(&path_string);
         fs::create_dir_all(user_storage_path).unwrap();
@@ -95,7 +93,7 @@ impl User {
 
     pub fn add_conversation_to_user(&mut self, conversation_id: String) -> Result<(), &'static str>{
         self.read_user_conversations_file();
-        let was_new = self.conversations.conv_hashset.insert(conversation_id);
+        let was_new = self.conversations.conv_list.insert(conversation_id);
         if was_new{
             self.save_user_conversations_file();
             Ok(())
@@ -103,9 +101,6 @@ impl User {
         else{
             Err("Id Already existed")
         }
-
-        
-
     }
 }
 
@@ -125,12 +120,13 @@ impl Default for UserDatabase {
 }
 
 impl UserDatabase {
+
     pub fn save_users_to_file(&self) {
         let new_file = File::create("Users.json").unwrap();
         serde_json::to_writer_pretty(new_file, &self)
-            .expect("Could not write to the Users.json file");
+        .expect("Could not write to the Users.json file");
     }
-
+    
     pub fn read_users_from_file(&mut self) {
         let f = File::open("Users.json").unwrap();
         let json_database: Result<UserDatabase, serde_json::Error> = serde_json::from_reader(f);
@@ -139,27 +135,15 @@ impl UserDatabase {
             Err(_) => *self = UserDatabase::default(),
         }
     }
-
+    
     pub fn _check_if_username_exists(&self, compare_name: &String) -> bool {
         self.users.lock().contains_key(compare_name)
     }
-
+    
     pub fn _check_if_email_exists(&self, user: &String) -> bool {
         self.emails.lock().contains(user)
     }
-
-    pub fn _add_conversation(&self, chat_id: &String) {
-        // the conversation file holding the chat messages
-        let path_string = format!("Conversations/{}", chat_id.clone());
-        let conversations_dir = PathBuf::from(&path_string);
-        fs::create_dir_all(conversations_dir).unwrap();
-
-        let conversation_file = format!("{}/conversation.json", path_string);
-        let new_file = File::create(conversation_file).unwrap();
-        serde_json::to_writer_pretty(new_file, &Chat::default())
-            .expect("Could not create the conversation file");
-    }
-
+    
     pub fn remove_user_from_database(&self, user: User) {
         if !self._check_if_email_exists(&user.email) {
             println!("Email does not exists");
@@ -169,7 +153,7 @@ impl UserDatabase {
         self.emails.lock().remove(&user.email);
         self.save_users_to_file();
     }
-
+    
     pub fn write_user_to_database(&self, mut user: User) {
         if self._check_if_username_exists(&user.user_name) {
             println!("Username exists");
@@ -180,16 +164,16 @@ impl UserDatabase {
             return;
         }
         user.id = user.email.to_hash();
-
+        
         self.users
-            .lock()
-            .insert(user.user_name.clone(), user.clone());
+        .lock()
+        .insert(user.user_name.clone(), user.clone());
         self.emails.lock().insert(user.email.clone());
-
+        
         self.save_users_to_file();
     }
-
-    pub fn register_new_user(&self, mut user: UserRegister) {
+    
+    pub fn register_new_user(&self, user: UserRegister) {
         if self._check_if_username_exists(&user.user_name) {
             println!("Username exists");
             return;
@@ -198,7 +182,7 @@ impl UserDatabase {
             println!("Email exists");
             return;
         }
-
+        
         let user_id = user.email.clone().to_hash();
         let new_user = User{
             user_name: user.user_name.clone(),
@@ -207,29 +191,26 @@ impl UserDatabase {
             id: user_id,
             conversations: Conversations::default()
         };
-
+        
         self.users
-            .lock()
-            .insert(new_user.user_name.clone(), new_user.clone());
+        .lock()
+        .insert(new_user.user_name.clone(), new_user.clone());
         self.emails.lock().insert(user.email.clone());
-
+        
         self.save_users_to_file();
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Default)]
-pub struct Chat {
-    pub messages: HashMap<String, Message>,
-}
-
-#[derive(Deserialize, Serialize, Debug, Default)]
-pub struct Chats {
-    pub chat_dict: HashMap<String, Chat>,
+#[derive(Deserialize, Serialize, Debug, Default, Clone)]
+pub struct CreateConversation{
+    pub user_id: String,
+    pub users_to_invite: Vec<String>,
+    pub public: bool
 }
 
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct Conversations {
-    pub conv_hashset: HashSet<String>,
+    pub conv_list: HashSet<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -238,3 +219,5 @@ pub struct Message {
     pub user: String,
     pub complete: bool,
 }
+
+

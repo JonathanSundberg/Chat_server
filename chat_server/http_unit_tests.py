@@ -25,6 +25,23 @@ def remove_user_from_database():
     assert post_request.status_code == 200, "Failed to remove user"
 
 
+def create_conversation():
+    url = "http://localhost:8000/conversation/create_conversation"
+    test_user = {
+    "user_id": "Python_user_1",
+    "users_to_invite": ["python_user_2"],
+    "public": False
+    }
+    post_request = requests.post(url, json=test_user)
+    print(post_request.status_code)
+    assert post_request.status_code == 200, "Failed to create conversation"
+
+
+
+def send_message():
+  url = "http://localhost:8000/message/received"
+
+
 
 def main():
     register_user()

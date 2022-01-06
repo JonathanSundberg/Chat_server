@@ -39,11 +39,6 @@ fn index() -> &'static str {
     "Hello, world!"
 }
 
-#[get("/message/update/<sent_string>")]
-fn update_messages(sent_string: &RawStr) -> String {
-    format!("This is the string:, {}", sent_string.as_str())
-}
-
 // curl -X POST -H "Content-Type: application/json" -d @post_json.json http://localhost:8000/message/received  too test
 #[post("/message/received", format = "json", data = "<message>")]
 fn received_message(message: Json<Message>) -> String {
@@ -63,6 +58,12 @@ fn remove_user(user: Json<User>) -> String {
     println!("We are removing a user!");
     //remove_user_from_database(user.into_inner());
     format!("User removed!")
+}
+
+#[post("/conversation/create_conversation", format = "json", data = "<creation_struct>")]
+fn create_conversation(user_database: State<UserDatabase>, creation_struct: Json<CreateConversation>) -> String {
+    
+    format!("We are creating a conversation")
 }
 
 fn _get_file_if_exists_else_create_empty(filepath: PathBuf) -> File {
@@ -97,21 +98,21 @@ fn _get_users_database() -> UserDatabase {
 fn mounts(user_database: UserDatabase) -> rocket::Rocket {
     rocket::ignite()
         .mount("/", routes![index])
-        .mount("/", routes![update_messages])
         .mount("/", routes![received_message])
         .mount("/", routes![register_user])
         .mount("/", routes![remove_user])
         .manage(user_database)
 }
 
-fn initialze() -> UserDatabase {
+fn initialze_user_database() -> UserDatabase {
     let mut user_database = UserDatabase::default();
     user_database.read_users_from_file();
     user_database
 }
 
+
 fn main() {
-    let user_database = initialze();
+    let user_database = initialze_user_database();
     mounts(user_database).launch();
 }
 
@@ -223,34 +224,9 @@ mod tests {
 
 
     // Rocket tests
-    #[test]
-    fn update_messages() {
-        /*let client = Client::new(mounts()).expect("valid rocket instance");
-        let mut response = client
-            .get("/message/update/Testing_a_string_here")
-            .dispatch();
-        assert_eq!(response.status(), Status::Ok);
-        //assert_eq!(response.body_string(), Some("Hello, world!".into()));
-
-        println!("message string: {}", response.body_string().unwrap());*/
-    }
 
     #[test]
     fn received_message() {
-        /*let message = Message {
-            message: String::from("this is my test string"),
-            user: String::from("test user"),
-            complete: true,
-        };
-        let body = serde_json::to_string(&message).unwrap();
-
-        let client = Client::new(mounts()).expect("valid rocket instance");
-        let _result = client
-            .post("/message/received")
-            .header(ContentType::JSON)
-            .body(&body)
-            .dispatch();
-
-        //println!("response: {}", res);*/
+    
     }
 }
