@@ -41,9 +41,13 @@ fn index() -> &'static str {
 
 // curl -X POST -H "Content-Type: application/json" -d @post_json.json http://localhost:8000/message/received  too test
 #[post("/message/received", format = "json", data = "<message>")]
-fn received_message(message: Json<Message>) -> String {
+fn received_message(user_database: State<UserDatabase>, conversations: State<Conversations>, message: Json<Message>) -> String {
     println!("message: {}", &message.message);
-    format!("We are getting a post request!")
+
+    let convo = conversations.all_conversations.get_mut(&message.conversation_id.clone()).unwrap();
+    convo.deliver_message_to_concerners(message.into_inner(), user_database);
+    
+    format!("We are recieving a message")
 }
 
 #[post("/message/register", format = "json", data = "<user>")]
@@ -60,11 +64,18 @@ fn remove_user(user: Json<User>) -> String {
     format!("User removed!")
 }
 
-#[post("/conversation/create_conversation", format = "json", data = "<creation_struct>")]
-fn create_conversation(user_database: State<UserDatabase>, creation_struct: Json<CreateConversation>) -> String {
-    
+#[post(
+    "/conversation/create_conversation",
+    format = "json",
+    data = "<creation_struct>"
+)]
+fn create_conversation(
+    user_database: State<UserDatabase>,
+    creation_struct: Json<CreateConversation>,
+) -> String {
     format!("We are creating a conversation")
 }
+
 
 fn _get_file_if_exists_else_create_empty(filepath: PathBuf) -> File {
     if filepath.exists() {
@@ -95,13 +106,14 @@ fn _get_users_database() -> UserDatabase {
     user_database
 }
 
-fn mounts(user_database: UserDatabase) -> rocket::Rocket {
+fn mounts(user_database: UserDatabase, conversations: Conversations) -> rocket::Rocket {
     rocket::ignite()
         .mount("/", routes![index])
         .mount("/", routes![received_message])
         .mount("/", routes![register_user])
         .mount("/", routes![remove_user])
         .manage(user_database)
+        .manage(conversations)
 }
 
 fn initialze_user_database() -> UserDatabase {
@@ -110,35 +122,39 @@ fn initialze_user_database() -> UserDatabase {
     user_database
 }
 
-
 fn main() {
     let user_database = initialze_user_database();
-    mounts(user_database).launch();
+    let conversations = Conversations::default();
+    mounts(user_database, conversations).launch();
 }
 
 // use cargo test -- --nocapture to get output
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
 
     // UserDatabase tests
     #[test]
     fn _write_userdatabase_to_file_test() {
-        let id1 = 1111;
-        let id2 = 11112;
+        let id1 = 9547029640726372498;
+        let id2 = 9547029640726372490;
         let temp_user_1 = User {
             user_name: "my_user".to_string(),
             password: "testing_my_password".to_string(),
             email: "test_email@trying.com".to_string(),
             id: id1,
-            conversations: Conversations::default()
+            conversations: UserConversations::default(),
+            messageQueue: HashSet::default(),
         };
         let temp_user_2 = User {
             user_name: "second_user".to_string(),
             password: "Another_password".to_string(),
             email: "another_email@trying.com".to_string(),
             id: id2,
-            conversations: Conversations::default()
+            conversations: UserConversations::default(),
+            messageQueue: HashSet::default(),
         };
 
         let mut user_database = UserDatabase::default();
@@ -149,7 +165,7 @@ mod tests {
             let mut map = user_database.users.lock();
             let mut set = user_database.emails.lock();
 
-            map.insert(temp_user_1.user_name.clone(), temp_user_1.clone());
+            map.insert(id1, temp_user_1.clone());
             set.insert(temp_user_1.email.clone());
         }
 
@@ -159,30 +175,31 @@ mod tests {
 
     #[test]
     fn remove_user_from_database_test() {
-        let id1 = 3232323;
+        let id1 = 9547029640726372498;
         let temp_user_1 = User {
             user_name: "my_user".to_string(),
             password: "testing_my_password".to_string(),
             email: "test_email@trying.com".to_string(),
             id: id1,
-            conversations: Conversations::default()
+            conversations: UserConversations::default(),
+            messageQueue: HashSet::default(),
         };
         let mut user_database = UserDatabase::default();
         user_database.read_users_from_file();
         user_database.remove_user_from_database(temp_user_1);
     }
 
-
     // User tests
     #[test]
     fn _create_User_storage_directory_test() {
-
+        let id1 = 9547029640726372498;
         let mut temp_user_1 = User {
             user_name: "my_user".to_string(),
             password: "testing_my_password".to_string(),
             email: "test_email@trying.com".to_string(),
-            id: 1,
-            conversations: Conversations::default()
+            id: id1,
+            conversations: UserConversations::default(),
+            messageQueue: HashSet::default(),
         };
         temp_user_1.id = temp_user_1.email.to_hash();
         dbg!(&temp_user_1);
@@ -190,43 +207,24 @@ mod tests {
     }
 
     #[test]
-    fn add_conversation_to_user_test(){
+    fn add_conversation_to_user_test() {
+        let id1 = 9547029640726372498;
         let mut temp_user_1 = User {
             user_name: "my_user".to_string(),
             password: "testing_my_password".to_string(),
             email: "test_email@trying.com".to_string(),
-            id: 1,
-            conversations: Conversations::default()
+            id: id1,
+            conversations: UserConversations::default(),
+            messageQueue: HashSet::default(),
         };
         temp_user_1.id = temp_user_1.email.to_hash();
         let conversation_id = Uuid::new_v4().to_string();
         let result = temp_user_1.add_conversation_to_user(conversation_id);
         dbg!(temp_user_1);
-        
     }
-
-    #[test]
-    fn create_conversation_file_test() {
-        let mut temp_user_1 = User {
-            user_name: "my_user".to_string(),
-            password: "testing_my_password".to_string(),
-            email: "test_email@trying.com".to_string(),
-            id: 1,
-            conversations: Conversations::default()
-        };
-        temp_user_1.id = temp_user_1.email.to_hash();
-        dbg!(&temp_user_1);
-        
-        let conversation_id = Uuid::new_v4().to_string();
-        let user_database = UserDatabase::default();
-        let _result = user_database._add_conversation(&conversation_id);
-    }
-
 
     // Rocket tests
 
     #[test]
-    fn received_message() {
-    
-    }
+    fn received_message() {}
 }
