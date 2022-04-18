@@ -149,14 +149,15 @@ impl UserDatabase {
         self.emails.lock().contains(user)
     }
 
-    pub fn remove_user_from_database(&self, user: User) {
+    pub fn remove_user_from_database(&self, user: User) -> Result<(), ()>{
         if !self._check_if_email_exists(&user.email) {
             println!("Email does not exists");
-            return;
+            return Err(());
         }
         self.users.lock().remove(&user.id);
         self.emails.lock().remove(&user.email);
         self.save_users_to_file();
+        Ok(())
     }
 
     pub fn write_user_to_database(&self, mut user: User) { // TODO: make private?

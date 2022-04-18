@@ -2,8 +2,6 @@ from turtle import pos
 import requests
 import unittest
 
-# To do unit testing, write this in local console
-# python -m unittest test_client_requests.py
 class TestRequests(unittest.TestCase):
 
     def test_send_message(self):
@@ -35,10 +33,10 @@ class TestRequests(unittest.TestCase):
         "user_name": "Python_test_user",
         "password": "Python_test_password",
         "email": "Python_test_emaill@trying.com",
-        "id": ""
         }
         post_request = requests.post(url, json=test_user)
-        self.assertEqual(post_request.status_code, 200)
+        print(post_request.text)
+        self.assertEqual(post_request.text, "true")
 
     def test_create_conversation(self):
         url = "http://localhost:8000/conversation/create_conversation"
@@ -50,3 +48,6 @@ class TestRequests(unittest.TestCase):
         post_request = requests.post(url, json=test_user)
         print(post_request.status_code)
         assert post_request.status_code == 200, "Failed to create conversation"
+
+if __name__ == "__main__":
+    unittest.main()

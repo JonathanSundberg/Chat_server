@@ -71,10 +71,15 @@ fn register_user(user: Json<UserRegister>, user_database: State<UserDatabase>) -
 }
 
 #[post("/message/remove", format = "json", data = "<user>")]
-fn remove_user(user: Json<User>) -> String {
+fn remove_user(
+    user_database: State<UserDatabase>,
+    user: Json<UserRegister>) -> String {
     println!("We are removing a user!");
-    //remove_user_from_database(user.into_inner());
-    format!("User removed!")
+    let result = user_database.remove_user_from_database(user.into_inner());
+    if result.is_err(){
+        return format!("false");
+    }
+    format!("true")
 }
 
 #[post(
