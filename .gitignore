@@ -11,3 +11,4 @@
 chat_server/Conversations
 chat_server/Users
 chat_server/Users.json
+*.pyc
