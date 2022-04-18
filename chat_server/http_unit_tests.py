@@ -24,7 +24,6 @@ def remove_user_from_database():
     print(type(post_request.status_code))
     assert post_request.status_code == 200, "Failed to remove user"
 
-
 def create_conversation():
     url = "http://localhost:8000/conversation/create_conversation"
     test_user = {
@@ -36,15 +35,23 @@ def create_conversation():
     print(post_request.status_code)
     assert post_request.status_code == 200, "Failed to create conversation"
 
-
-
 def send_message():
-  url = "http://localhost:8000/message/received"
+    url = "http://localhost:8000/message/received"
 
+    message = {
+    "message": "This is my test message",
+    "user": "",
+    "conversation_id": "242865f2-c84e-4e76-a7eb-f230f10bb79b"
+    }
+
+    post_request = requests.post(url, json=message)
+    print(post_request.status_code)
+    assert post_request.status_code == 200, "Failed to send message"
 
 
 def main():
-    register_user()
+    send_message()
+    #register_user()
     #remove_user_from_database()
     
 

@@ -1,13 +1,18 @@
 {
   "users": {
-    "my_user": {
+    "9547029640726372498": {
       "user_name": "my_user",
       "password": "testing_my_password",
       "email": "test_email@trying.com",
-      "id": "fab5f7f6-5824-47a6-a379-fdee5bb08322"
+      "id": 9547029640726372498,
+      "conversations": {
+        "conv_list": []
+      },
+      "message_queue": []
     }
   },
   "emails": [
     "test_email@trying.com"
-  ]
+  ],
+  "usernames": []
 }

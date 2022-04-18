@@ -29,20 +29,20 @@ impl Hashable for String {
 }
 
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
-pub struct UserRegister {
+pub struct UserRegister { // The minimum required information to register a user
     pub user_name: String,
     pub password: String,
     pub email: String,
 }
 
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
-pub struct User {
+pub struct User { // The information stored for a user
     pub user_name: String,
     pub password: String,
     pub email: String,
     pub id: u64,
     pub conversations: UserConversations,
-    pub messageQueue: HashSet<Message>,
+    pub message_queue: HashSet<Message>,
 }
 
 impl User {
@@ -62,7 +62,7 @@ impl User {
         return format!("Users/{}", self.id.clone());
     }
 
-    pub fn read_user_conversations_file(&mut self) {
+    pub fn read_user_conversations_file(&mut self) { // reading the users conversation from saved filed
         let path = format!("Users/{}/Conversations.json", self.id.clone());
         let f = File::open(&path);
         dbg!(&path);
@@ -78,7 +78,7 @@ impl User {
         }
     }
 
-    pub fn save_user_conversations_file(&self) -> Result<(), String> {
+    pub fn save_user_conversations_file(&self) -> Result<(), String> { // Writing the users conversations to file. Only by IDs
         let path = format!("Users/{}/Conversations.json", self.id.clone());
         let new_file = File::create(path).unwrap();
         serde_json::to_writer_pretty(new_file, &self.conversations)
@@ -101,12 +101,12 @@ impl User {
     }
 
     pub fn add_to_message_queue(mut self, message: Message) {
-        self.messageQueue.insert(message);
+        self.message_queue.insert(message);
     }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct UserDatabase {
+pub struct UserDatabase { // stores all users, all emails and all usernames
     pub users: Mutex<HashMap<u64, User>>,
     pub emails: Mutex<HashSet<String>>,
     pub usernames: Mutex<HashSet<String>>,
@@ -123,26 +123,29 @@ impl Default for UserDatabase {
 }
 
 impl UserDatabase {
-    pub fn save_users_to_file(&self) {
+    pub fn save_users_to_file(&self) { // TODO: make private?
         let new_file = File::create("Users.json").unwrap();
         serde_json::to_writer_pretty(new_file, &self)
             .expect("Could not write to the Users.json file");
     }
 
-    pub fn read_users_from_file(&mut self) {
+    pub fn read_users_from_file(&mut self) { // TODO: make private?
         let f = File::open("Users.json").unwrap();
         let json_database: Result<UserDatabase, serde_json::Error> = serde_json::from_reader(f);
         match json_database {
             Ok(content) => *self = content,
-            Err(_) => *self = UserDatabase::default(),
+            Err(e) => {
+                println!("Could not read users from file: {}", e);
+                *self = UserDatabase::default()
+            }
         }
     }
 
-    pub fn _check_if_username_exists(&self, compare_name: &String) -> bool {
+    pub fn _check_if_username_exists(&self, compare_name: &String) -> bool { // TODO: make private?
         self.usernames.lock().contains(compare_name)
     }
 
-    pub fn _check_if_email_exists(&self, user: &String) -> bool {
+    pub fn _check_if_email_exists(&self, user: &String) -> bool { // TODO: make private?
         self.emails.lock().contains(user)
     }
 
@@ -156,7 +159,7 @@ impl UserDatabase {
         self.save_users_to_file();
     }
 
-    pub fn write_user_to_database(&self, mut user: User) {
+    pub fn write_user_to_database(&self, mut user: User) { // TODO: make private?
         if self._check_if_username_exists(&user.user_name) {
             println!("Username exists");
             return;
@@ -190,7 +193,7 @@ impl UserDatabase {
             password: user.password,
             id: user_id,
             conversations: UserConversations::default(),
-            messageQueue: HashSet::default(),
+            message_queue: HashSet::default(),
         };
 
         self.users
@@ -203,33 +206,39 @@ impl UserDatabase {
 }
 
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
-pub struct Conversations {
-    pub all_conversations: HashMap<String, Conversation>,
+pub struct Conversations { // hashmap which holds a string with a unique id for the conversation, and a hashset with all users in said conversation by their IDs
+    pub all_conversations: HashMap<String, UsersInConversationByID>,
 }
 
+
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
-pub struct Conversation {
+pub struct UsersInConversationByID { // Hashset which holds the user id of all users in a conversation
     pub conversation_users: HashSet<u64>,
 }
 
-impl Conversation {
-    pub fn deliver_message_to_concerners(&self, message: Message, userdatabase: UserDatabase) {
+impl UsersInConversationByID {
+    pub fn deliver_message_to_concerners(&self, message: Message, userdatabase: &UserDatabase) { // Delivers the sent message to all stored users
         let mut all_users = userdatabase.users.lock();
         for conversation_user in self.conversation_users.iter() {
-            all_users.get_mut(conversation_user).unwrap().messageQueue.insert(message.clone());
+            all_users
+                .get_mut(conversation_user)
+                .unwrap()
+                .message_queue
+                .insert(message.clone());
         }
+        dbg!(all_users);
     }
 }
 
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
-pub struct CreateConversation {
+pub struct CreateConversation { // instructions sent from client to create a conversation
     pub user_id: String,
     pub users_to_invite: Vec<String>,
     pub public: bool,
 }
 
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
-pub struct UserConversations {
+pub struct UserConversations { // hashset that keeps track of all the conversation the user is part of
     pub conv_list: HashSet<String>,
 }
 

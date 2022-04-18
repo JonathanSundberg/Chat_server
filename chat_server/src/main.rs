@@ -4,6 +4,8 @@ use rocket::State;
 use rocket_contrib::json::Json;
 use std::{
     collections::hash_map::DefaultHasher,
+    collections::HashSet,
+    collections::HashMap,
     fs::File,
     hash::{
         // collections::hash_map::DefaultHasher Requires these to hash
@@ -41,12 +43,23 @@ fn index() -> &'static str {
 
 // curl -X POST -H "Content-Type: application/json" -d @post_json.json http://localhost:8000/message/received  too test
 #[post("/message/received", format = "json", data = "<message>")]
-fn received_message(user_database: State<UserDatabase>, conversations: State<Conversations>, message: Json<Message>) -> String {
+fn received_message(
+    user_database: State<UserDatabase>,
+    conversations: State<Conversations>,
+    message: Json<Message>,
+) -> String {
     println!("message: {}", &message.message);
+    println!("Conversations: {:?}", &conversations);
+    println!("User database: {:?}", &user_database);
 
-    let convo = conversations.all_conversations.get_mut(&message.conversation_id.clone()).unwrap();
-    convo.deliver_message_to_concerners(message.into_inner(), user_database);
-    
+    let convo = &conversations.all_conversations[&message.conversation_id.clone()];
+    convo.deliver_message_to_concerners(message.into_inner(), &*user_database);
+
+    dbg!(&user_database);
+
+    //let convo = conversations.all_conversations.get_mut(&message.conversation_id.clone()).unwrap();
+    //convo.deliver_message_to_concerners(message.into_inner(), &user_database);
+
     format!("We are recieving a message")
 }
 
@@ -75,7 +88,6 @@ fn create_conversation(
 ) -> String {
     format!("We are creating a conversation")
 }
-
 
 fn _get_file_if_exists_else_create_empty(filepath: PathBuf) -> File {
     if filepath.exists() {
@@ -116,15 +128,31 @@ fn mounts(user_database: UserDatabase, conversations: Conversations) -> rocket::
         .manage(conversations)
 }
 
-fn initialze_user_database() -> UserDatabase {
+fn initialize_user_database() -> UserDatabase {
     let mut user_database = UserDatabase::default();
     user_database.read_users_from_file();
     user_database
 }
 
 fn main() {
-    let user_database = initialze_user_database();
-    let conversations = Conversations::default();
+    let user_database = initialize_user_database(); // read users.json file
+
+    // Adding user to conversation
+    let mut users = HashSet::new(); 
+    users.insert(9547029640726372498);
+    let conversation = UsersInConversationByID{
+        conversation_users: users
+    };
+
+    // Adding conversation to hashmap with unique conversation ID
+    let mut temp = HashMap::new();
+    temp.insert(String::from("242865f2-c84e-4e76-a7eb-f230f10bb79b"), conversation);
+
+    let conversations = Conversations{
+        all_conversations: temp
+    };
+
+    // some of the things above is only temp for testing
     mounts(user_database, conversations).launch();
 }
 
@@ -146,7 +174,7 @@ mod tests {
             email: "test_email@trying.com".to_string(),
             id: id1,
             conversations: UserConversations::default(),
-            messageQueue: HashSet::default(),
+            message_queue: HashSet::default(),
         };
         let temp_user_2 = User {
             user_name: "second_user".to_string(),
@@ -154,7 +182,7 @@ mod tests {
             email: "another_email@trying.com".to_string(),
             id: id2,
             conversations: UserConversations::default(),
-            messageQueue: HashSet::default(),
+            message_queue: HashSet::default(),
         };
 
         let mut user_database = UserDatabase::default();
@@ -182,7 +210,7 @@ mod tests {
             email: "test_email@trying.com".to_string(),
             id: id1,
             conversations: UserConversations::default(),
-            messageQueue: HashSet::default(),
+            message_queue: HashSet::default(),
         };
         let mut user_database = UserDatabase::default();
         user_database.read_users_from_file();
@@ -199,7 +227,7 @@ mod tests {
             email: "test_email@trying.com".to_string(),
             id: id1,
             conversations: UserConversations::default(),
-            messageQueue: HashSet::default(),
+            message_queue: HashSet::default(),
         };
         temp_user_1.id = temp_user_1.email.to_hash();
         dbg!(&temp_user_1);
@@ -215,7 +243,7 @@ mod tests {
             email: "test_email@trying.com".to_string(),
             id: id1,
             conversations: UserConversations::default(),
-            messageQueue: HashSet::default(),
+            message_queue: HashSet::default(),
         };
         temp_user_1.id = temp_user_1.email.to_hash();
         let conversation_id = Uuid::new_v4().to_string();
