@@ -75,7 +75,8 @@ fn remove_user(
     user_database: State<UserDatabase>,
     user: Json<UserRegister>) -> String {
     println!("We are removing a user!");
-    let result = user_database.remove_user_from_database(user.into_inner());
+    let full_user = user_database.get_user_by_email(&user.email);
+    let result = user_database.remove_user_from_database(full_user);
     if result.is_err(){
         return format!("false");
     }

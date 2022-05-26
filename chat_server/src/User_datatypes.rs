@@ -154,8 +154,9 @@ impl UserDatabase {
             println!("Email does not exists");
             return Err(());
         }
-        self.users.lock().remove(&user.id);
+        self.usernames.lock().remove(&user.user_name);
         self.emails.lock().remove(&user.email);
+        self.users.lock().remove(&user.id);
         self.save_users_to_file();
         Ok(())
     }
@@ -204,6 +205,14 @@ impl UserDatabase {
 
         self.save_users_to_file();
     }
+
+    pub fn get_user_by_email(self, email: &String) -> User{
+        let user_id = email.clone().to_hash();
+        println!("User id: {:?}", user_id);
+        let user = self.users.lock()[&user_id].clone();
+        user
+    }
+
 }
 
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
