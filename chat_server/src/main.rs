@@ -1,5 +1,4 @@
 #![feature(proc_macro_hygiene, decl_macro)]
-use rocket::http::RawStr;
 use rocket::State;
 use rocket_contrib::json::Json;
 use std::{
@@ -16,10 +15,9 @@ use std::{
     path::PathBuf,
     str::FromStr,
 };
-use uuid::Uuid;
 
-mod User_datatypes;
-use User_datatypes::*;
+mod user_datatypes;
+use user_datatypes::*;
 
 trait Hashable {
     fn to_hash(&self) -> u64;
@@ -66,31 +64,38 @@ fn received_message(
 #[post("/message/register", format = "json", data = "<user>")]
 fn register_user(user: Json<UserRegister>, user_database: State<UserDatabase>) -> String {
     println!("We are registering a user!");
-    user_database.register_new_user(user.into_inner());
-    format!("User registered!")
+    let result = user_database.register_new_user(user.into_inner());
+    if result.is_err(){
+        return format!("false")
+    }
+    println!("User registered!");
+    format!("true")
 }
 
 #[post("/message/remove", format = "json", data = "<user>")]
 fn remove_user(
     user_database: State<UserDatabase>,
     user: Json<UserRegister>) -> String {
-    println!("We are removing a user!");
     let full_user = user_database.get_user_by_email(&user.email);
-    let result = user_database.remove_user_from_database(full_user);
+    if full_user.is_none(){
+        return format!("false")
+    }
+    let result = user_database.remove_user_from_database(full_user.unwrap());
     if result.is_err(){
         return format!("false");
     }
+    println!("User successfully removed");
     format!("true")
 }
 
 #[post(
     "/conversation/create_conversation",
     format = "json",
-    data = "<creation_struct>"
+    data = "<_creation_struct>"
 )]
 fn create_conversation(
-    user_database: State<UserDatabase>,
-    creation_struct: Json<CreateConversation>,
+    _user_database: State<UserDatabase>,
+    _creation_struct: Json<CreateConversation>,
 ) -> String {
     format!("We are creating a conversation")
 }

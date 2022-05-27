@@ -1,4 +1,3 @@
-#![feature(proc_macro_hygiene, decl_macro)]
 use parking_lot::Mutex;
 
 use serde::{Deserialize, Serialize};
@@ -161,31 +160,33 @@ impl UserDatabase {
         Ok(())
     }
 
-    pub fn write_user_to_database(&self, mut user: User) { // TODO: make private?
+    pub fn write_user_to_database(&self, mut user: User) -> Result<(), ()>{ // TODO: make private?
         if self._check_if_username_exists(&user.user_name) {
             println!("Username exists");
-            return;
+            return Err(());
         }
         if self._check_if_email_exists(&user.email) {
             println!("Email exists");
-            return;
+            return Err(());
         }
         user.id = user.email.to_hash();
 
         self.users.lock().insert(user.id.clone(), user.clone());
         self.emails.lock().insert(user.email.clone());
+        self.usernames.lock().insert(user.user_name.clone());
 
-        self.save_users_to_file();
+        //self.save_users_to_file();
+        Ok(())
     }
 
-    pub fn register_new_user(&self, user: UserRegister) {
+    pub fn register_new_user(&self, user: UserRegister) -> Result<(),()>{
         if self._check_if_username_exists(&user.user_name) {
             println!("Username exists");
-            return;
+            return Err(());
         }
         if self._check_if_email_exists(&user.email) {
             println!("Email exists");
-            return;
+            return Err(());
         }
 
         let user_id = user.email.clone().to_hash();
@@ -198,19 +199,16 @@ impl UserDatabase {
             message_queue: HashSet::default(),
         };
 
-        self.users
-            .lock()
-            .insert(new_user.id.clone(), new_user.clone());
+        self.users.lock().insert(new_user.id.clone(), new_user.clone());
         self.emails.lock().insert(user.email.clone());
+        self.usernames.lock().insert(new_user.user_name.clone());
 
         self.save_users_to_file();
+        Ok(())
     }
 
-    pub fn get_user_by_email(self, email: &String) -> User{
-        let user_id = email.clone().to_hash();
-        println!("User id: {:?}", user_id);
-        let user = self.users.lock()[&user_id].clone();
-        user
+    pub fn get_user_by_email(&self, email: &String) -> Option<User>{
+        self.users.lock().get(&email.to_hash()).cloned()
     }
 
 }
