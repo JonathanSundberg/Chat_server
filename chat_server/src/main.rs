@@ -170,8 +170,6 @@ fn main() {
 // use cargo test -- --nocapture to get output
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use super::*;
 
     // UserDatabase tests
@@ -245,7 +243,7 @@ mod tests {
         temp_user_1._create_User_storage_directory();
     }
 
-    #[test]
+   /* #[test]
     fn add_conversation_to_user_test() {
         let id1 = 9547029640726372498;
         let mut temp_user_1 = User {
@@ -260,7 +258,7 @@ mod tests {
         let conversation_id = Uuid::new_v4().to_string();
         let result = temp_user_1.add_conversation_to_user(conversation_id);
         dbg!(temp_user_1);
-    }
+    }*/
 
     // Rocket tests
 

@@ -1,5 +1,5 @@
 use parking_lot::Mutex;
-
+use argon2::{self, Config};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::hash_map::DefaultHasher,
@@ -14,6 +14,11 @@ use std::{
     },
     path::PathBuf,
 };
+
+// Globals
+static SALT: &[u8] = b"ThisCouldBeMySalt";
+
+
 
 trait Hashable {
     fn to_hash(&self) -> u64;
@@ -188,12 +193,16 @@ impl UserDatabase {
             println!("Email exists");
             return Err(());
         }
+        
+        let config = Config::default();
+        let hashed_password = argon2::hash_encoded(user.password.as_bytes(), SALT, &config).unwrap();
+        let result = argon2::verify_encoded(&hashed_password, user.password.as_bytes()).unwrap();
 
         let user_id = user.email.clone().to_hash();
         let new_user = User {
             user_name: user.user_name.clone(),
             email: user.email.clone(),
-            password: user.password,
+            password: hashed_password,
             id: user_id,
             conversations: UserConversations::default(),
             message_queue: HashSet::default(),
@@ -255,4 +264,30 @@ pub struct Message {
     pub message: String,
     pub user: String,
     pub conversation_id: String,
+}
+
+
+// use cargo test -- --nocapture to get output
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn register_new_user_test() {
+
+        let database = UserDatabase::default();
+        let user_name = "my_username".to_string();
+        let password = "my_password".to_string();
+        let email = "my_email@email.com".to_string();
+
+        let user = UserRegister {
+            user_name: user_name,
+            password: password,
+            email: email,
+        };
+
+        database.register_new_user(user);
+
+    }
+
 }

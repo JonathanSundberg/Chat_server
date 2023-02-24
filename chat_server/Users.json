@@ -1,26 +1,10 @@
 {
   "users": {
-    "9547029640726372498": {
-      "user_name": "my_user",
-      "password": "testing_my_password",
-      "email": "test_email@trying.com",
-      "id": 9547029640726372498,
-      "conversations": {
-        "conv_list": []
-      },
-      "message_queue": [
-        {
-          "message": "This is my test message",
-          "user": "",
-          "conversation_id": "242865f2-c84e-4e76-a7eb-f230f10bb79b"
-        }
-      ]
-    },
-    "6954712944198465371": {
-      "user_name": "Python_test_user",
-      "password": "Python_test_password",
-      "email": "Python_test_emaill@trying.com",
-      "id": 6954712944198465371,
+    "142365988363230080": {
+      "user_name": "my_username",
+      "password": "$argon2i$v=19$m=4096,t=3,p=1$VGhpc0NvdWxkQmVNeVNhbHQ$TBLrLa/X4iDErMvoLYOHkkIT8a/XpPCoEhJOygkvOG4",
+      "email": "my_email@email.com",
+      "id": 142365988363230080,
       "conversations": {
         "conv_list": []
       },
@@ -28,8 +12,9 @@
     }
   },
   "emails": [
-    "test_email@trying.com",
-    "Python_test_emaill@trying.com"
+    "my_email@email.com"
   ],
-  "usernames": []
+  "usernames": [
+    "my_username"
+  ]
 }
